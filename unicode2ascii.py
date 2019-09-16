@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 # Replaces Unicode characters in input text with ASCII
 # approximations based on file with mappings between the two.
@@ -26,11 +26,14 @@ missing_mapping = {}
 
 # Support wide unichr on narrow python builds. From @marcovzla, see
 # https://github.com/spyysalo/nxml2txt/pull/4.
+
+
 def wide_unichr(i):
     try:
         return chr(i)
     except ValueError:
         return (r'\U' + hex(i)[2:].zfill(8)).decode('unicode-escape')
+
 
 def read_mapping(f, fn="mapping data"):
     """
@@ -53,11 +56,14 @@ def read_mapping(f, fn="mapping data"):
             continue
 
         m = linere.match(l)
-        assert m, "Format error in %s line %s: '%s'" % (fn, i+1, l.replace("\n","").encode("utf-8"))
+        assert m, "Format error in %s line %s: '%s'" % (
+            fn, i + 1, l.replace("\n", "").encode("utf-8"))
         c, r = m.groups()
 
         c = wide_unichr(int(c, 16))
-        assert c not in mapping or mapping[c] == r, "ERROR: conflicting mappings for %.4X: '%s' and '%s'" % (ord(c), mapping[c], r)
+        assert (c not in mapping or mapping[c] == r), (
+            "ERROR: conflicting mappings for %.4X: '%s' and '%s'" % (
+                ord(c), mapping[c], r))
 
         # exception: literal '\n' maps to newline
         if r == '\\n':
@@ -66,6 +72,7 @@ def read_mapping(f, fn="mapping data"):
         mapping[c] = r
 
     return mapping
+
 
 def convert_u2a(f, out=None, mapping=None):
     """
@@ -90,18 +97,20 @@ def convert_u2a(f, out=None, mapping=None):
         if ord(c) >= 128:
             # higher than 7-bit ASCII, might wish to map
             if c in mapping:
-                map_count[c] = map_count.get(c,0)+1
+                map_count[c] = map_count.get(c, 0) + 1
                 c = mapping[c]
             else:
-                missing_mapping[c] = missing_mapping.get(c,0)+1
+                missing_mapping[c] = missing_mapping.get(c, 0) + 1
                 # escape into numeric Unicode codepoint
                 c = "<%.4X>" % ord(c)
-        out.write(c.encode("utf-8"))
+        # out.write(c.encode("utf-8"))
+        out.write(c.encode("utf-8").decode('utf-8'))
 
     if is_strio:
         return out.getvalue()
     else:
         return out
+
 
 def print_summary(out, mapping):
     """
@@ -116,31 +125,53 @@ def print_summary(out, mapping):
 
     print("Characters replaced       \t%d" % sum(map_count.values()), file=out)
     sk = list(map_count.keys())
-    sk.sort(lambda a,b : cmp(map_count[b],map_count[a]))
+    sk.sort(lambda a, b: cmp(map_count[b], map_count[a]))
     for c in sk:
         try:
-            print("\t%.4X\t%s\t'%s'\t%d" % (ord(c), c.encode("utf-8"), mapping[c], map_count[c]), file=out)
-        except:
-            print("\t%.4X\t'%s'\t%d" % (ord(c), mapping[c], map_count[c]), file=out)
-    print("Characters without mapping\t%d" % sum(missing_mapping.values()), file=out)
+            print("\t%.4X\t%s\t'%s'\t%d" % (
+                ord(c), c.encode("utf-8"), mapping[c], map_count[c]), file=out)
+        except BaseException:
+            print("\t%.4X\t'%s'\t%d" % (
+                ord(c), mapping[c], map_count[c]), file=out)
+    print("Characters without mapping\t%d" % sum(
+        missing_mapping.values()), file=out)
     sk = list(missing_mapping.keys())
-    sk.sort(lambda a,b : cmp(missing_mapping[b],missing_mapping[a]))
+    sk.sort(lambda a, b: cmp(missing_mapping[b], missing_mapping[a]))
     for c in sk:
         try:
-            print("\t%.4X\t%s\t%d" % (ord(c), c.encode("utf-8"), missing_mapping[c]), file=out)
-        except:
+            print("\t%.4X\t%s\t%d" % (
+                ord(c), c.encode("utf-8"), missing_mapping[c]), file=out)
+        except BaseException:
             print("\t%.4X\t?\t%d" % (ord(c), missing_mapping[c]), file=out)
+
+
+def cmp(a, b):
+    """Helper function to use Python2 cmp functionality."""
+    return (a > b) - (a < b)
+
 
 def argparser():
     """
     Returns an argument parser for the script.
     """
     import argparse
-    ap=argparse.ArgumentParser(description="Replaces Unicode characters in input text with ASCII approximations.")
-    ap.add_argument('-d', '--directory', default=None, help="Directory for output (stdout by default)")
-    ap.add_argument('-v', '--verbose', default=False, action='store_true', help="Verbose output")
+    ap = argparse.ArgumentParser(
+        description="Replaces Unicode characters in input text"
+                    "with ASCII approximations.")
+    ap.add_argument(
+        '-d',
+        '--directory',
+        default=None,
+        help="Directory for output (stdout by default)")
+    ap.add_argument(
+        '-v',
+        '--verbose',
+        default=False,
+        action='store_true',
+        help="Verbose output")
     ap.add_argument('file', nargs='+', help='Input text file')
     return ap
+
 
 def read_u2a_data():
     global u2a_mapping
@@ -153,13 +184,14 @@ def read_u2a_data():
 
     if not os.path.exists(mapfn):
         # fall back to trying in script dir
-        mapfn = os.path.join(os.path.dirname(__file__), 
+        mapfn = os.path.join(os.path.dirname(__file__),
                              os.path.basename(MAPPING_FILE_NAME))
 
     with codecs.open(mapfn, encoding="utf-8") as f:
         u2a_mapping = read_mapping(f, mapfn)
-    
+
     return u2a_mapping
+
 
 def log_missing_ascii_mappings(write=warn):
     if len(missing_mapping) == 0:
@@ -167,13 +199,14 @@ def log_missing_ascii_mappings(write=warn):
     write("Characters without ASCII mapping: %d" %
           sum(missing_mapping.values()))
     sk = list(missing_mapping.keys())
-    sk.sort(lambda a,b : cmp(missing_mapping[b],missing_mapping[a]))
+    sk.sort(lambda a, b: cmp(missing_mapping[b], missing_mapping[a]))
     for c in sk:
         try:
             write("\t%.4X\t%s\t%d" % (ord(c), c.encode("utf-8"),
                                       missing_mapping[c]))
-        except:
+        except BaseException:
             write("\t%.4X\t?\t%d" % (ord(c), missing_mapping[c]))
+
 
 def main(argv):
     options = argparser().parse_args(argv[1:])
@@ -182,7 +215,8 @@ def main(argv):
     try:
         mapping = read_u2a_data()
     except IOError as e:
-        print("Error reading mapping from %s: %s" % (MAPPING_FILE_NAME, e), file=sys.stderr)
+        print("Error reading mapping from %s: %s" % (
+            MAPPING_FILE_NAME, e), file=sys.stderr)
         return 1
 
     # primary processing
@@ -204,6 +238,7 @@ def main(argv):
         print_summary(sys.stderr, mapping)
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
